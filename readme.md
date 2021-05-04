@@ -4,7 +4,7 @@
 
 - npm i
 - cd server
-- run command `node index-working`
+- run command `node index`
 
 ### For react-native app
 

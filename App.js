@@ -1,399 +1,407 @@
-// import React, {useEffect, useState} from 'react';
-// import {
-//   SafeAreaView,
-//   StyleSheet,
-//   ScrollView,
-//   View,
-//   Text,
-//   StatusBar,
-//   Dimensions,
-//   TouchableOpacity,
-// } from 'react-native';
+import React, {Component} from 'react';
+import {
+  View,
+  Text,
+  Button,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Image,
+} from 'react-native';
 
-// import {
-//   RTCPeerConnection,
-//   RTCIceCandidate,
-//   RTCSessionDescription,
-//   RTCView,
-//   MediaStream,
-//   MediaStreamTrack,
-//   mediaDevices,
-//   registerGlobals,
-// } from 'react-native-webrtc';
-// import io from 'socket.io-client';
-
-// const dimensions = Dimensions.get('window');
-
-// const App = () => {
-//   const [localStream, setLocalStream] = useState(null);
-//   const [remoteStream, setRemoteStream] = useState(null);
-//   const [peerConn, setPeerConn] = useState(null);
-//   const [sdp, setSdp] = useState('');
-//   const [socket, setSocket] = useState(null);
-//   const [candidates, setCandidates] = useState([]);
-
-//   useEffect(() => {
-//     setSocket(
-//       io('http://192.168.1.15:8080/webrtcPeer', {
-//         path: '/io/webrtc',
-//         query: {
-//           room: 'test',
-//         },
-//       }),
-//     );
-
-//     const pc_config = {
-//       iceServers: [
-//         {
-//           urls: 'stun:stun.l.google.com:19302',
-//         },
-//       ],
-//     };
-//     setPeerConn(new RTCPeerConnection(pc_config));
-//   }, []);
-
-//   useEffect(() => {
-//     console.log('Use Effect Called');
-//     const constraint = {video: true};
-//     if (peerConn) {
-//       peerConn.onicecandidate = e => {
-//         if (e.candidate) {
-//           console.log('onicecandidate Candidate ', e.candidate);
-//           sendToServer('candidate', e.candidate);
-//         }
-//       };
-
-//       peerConn.oniceconnectionstatechange = e => {
-//         console.log('Ice connection changed', e);
-//       };
-
-//       peerConn.onaddstream = e => {
-//         setRemoteStream(e.stream);
-//       };
-
-//       let isFront = true;
-//       mediaDevices.enumerateDevices().then(sourceInfos => {
-//         console.log(sourceInfos);
-//         let videoSourceId;
-//         for (let i = 0; i < sourceInfos.length; i++) {
-//           const sourceInfo = sourceInfos[i];
-//           if (
-//             sourceInfo.kind == 'videoinput' &&
-//             sourceInfo.facing == (isFront ? 'front' : 'environment')
-//           ) {
-//             videoSourceId = sourceInfo.deviceId;
-//           }
-//         }
-//         mediaDevices
-//           .getUserMedia({
-//             audio: true,
-//             video: {
-//               mandatory: {
-//                 minWidth: 500, // Provide your own width, height and frame rate here
-//                 minHeight: 300,
-//                 minFrameRate: 30,
-//               },
-//               facingMode: isFront ? 'user' : 'environment',
-//               optional: videoSourceId ? [{sourceId: videoSourceId}] : [],
-//             },
-//           })
-//           .then(stream => {
-//             setLocalStream(stream);
-//             if (peerConn) peerConn.addStream(stream);
-//           })
-//           .catch(error => {
-//             console.log('Error while getting camera ', error);
-//           });
-//       });
-//     }
-//   }, [peerConn]);
-
-//   useEffect(() => {
-//     if (socket) {
-//       socket.on('connection-success', success => {
-//         console.log(success);
-//       });
-//       socket.on('offerOrAnswer', sdp => {
-//         setSdp(JSON.stringify(sdp));
-//         peerConn.setRemoteDescription(new RTCSessionDescription(sdp));
-//       });
-//       socket.on('candidate', candidate => {
-//         console.log('on candidate ', candidate);
-//         peerConn.addIceCandidate(new RTCIceCandidate(candidate));
-//       });
-//     }
-//     return () => {
-//       if (socket) socket.close();
-//     };
-//   }, [socket]);
-
-//   const createOffer = () => {
-//     peerConn.createOffer({offerToReceiveVideo: 1}).then(
-//       sdp => {
-//         peerConn.setLocalDescription(sdp);
-//         sendToServer('offerOrAnswer', sdp);
-//       },
-//       e => {
-//         console.log('Error create offer', e);
-//       },
-//     );
-//   };
-
-//   const createAnswer = () => {
-//     peerConn.createAnswer({offerToReceiveVideo: 1}).then(
-//       sdp => {
-//         peerConn.setLocalDescription(sdp);
-//         sendToServer('offerOrAnswer', sdp);
-//       },
-//       e => {
-//         console.log('Error create answer', e);
-//       },
-//     );
-//   };
-
-//   const sendToServer = (type, payload) => {
-//     socket.emit(type, {
-//       socketId: socket.id,
-//       payload,
-//     });
-//   };
-
-//   const remoteVideo = () => {
-//     return remoteStream ? (
-//       <RTCView
-//         key={2}
-//         mirror={true}
-//         objectFit="contain"
-//         style={styles.rtcRemoteView}
-//         streamURL={remoteStream && remoteStream.toURL()}
-//       />
-//     ) : (
-//       <View>
-//         <Text style={styles.loadingText}>Waiting for Peer Connection...</Text>
-//       </View>
-//     );
-//   };
-
-//   return (
-//     <>
-//       <StatusBar barStyle="dark-content" />
-//       <SafeAreaView style={styles.mainContainer}>
-//         <View style={styles.allBtnContainer}>
-//           <View style={styles.btnContainer}>
-//             <TouchableOpacity onPress={createOffer}>
-//               <Text style={styles.btnText}>Call</Text>
-//             </TouchableOpacity>
-//           </View>
-//           <View style={styles.btnContainer}>
-//             <TouchableOpacity onPress={createAnswer}>
-//               <Text style={styles.btnText}>Answer</Text>
-//             </TouchableOpacity>
-//           </View>
-//         </View>
-
-//         <View style={styles.videosContainer}>
-//           <ScrollView style={styles.scrollView}>
-//             <View style={styles.remoteVideoContainer}>{remoteVideo()}</View>
-//           </ScrollView>
-//           <View style={styles.localVideoContainer}>
-//             <TouchableOpacity
-//               onPress={() => localStream._tracks[1]._switchCamera()}>
-//               <RTCView
-//                 key={1}
-//                 zOrder={0}
-//                 objectFit="cover"
-//                 style={styles.rtcLocalView}
-//                 streamURL={localStream && localStream.toURL()}
-//               />
-//             </TouchableOpacity>
-//           </View>
-//         </View>
-//       </SafeAreaView>
-//     </>
-//   );
-// };
-
-// const styles = StyleSheet.create({
-//   mainContainer: {
-//     flex: 1,
-//   },
-//   allBtnContainer: {flexDirection: 'row'},
-//   btnContainer: {
-//     paddingVertical: 8,
-//     margin: 4,
-//     backgroundColor: 'green',
-//     borderRadius: 5,
-//     flex: 1,
-//   },
-//   btnText: {color: 'white', fontSize: 18, textAlign: 'center'},
-//   videosContainer: {
-//     flex: 1,
-//     flexDirection: 'row',
-//     justifyContent: 'center',
-//   },
-//   localVideoContainer: {
-//     position: 'absolute',
-//     backgroundColor: 'black',
-//     height: 250,
-//     width: 150,
-//     bottom: 10,
-//     right: 10,
-//     elevation: 10,
-//     zIndex: 1000,
-//   },
-//   rtcLocalView: {
-//     width: 150,
-//     height: 250,
-//     backgroundColor: 'black',
-//   },
-//   scrollView: {
-//     flex: 1,
-//     padding: 16,
-//     backgroundColor: 'teal',
-//   },
-//   remoteVideoContainer: {
-//     flex: 1,
-//     width: '100%',
-//     backgroundColor: 'black',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   loadingText: {
-//     color: 'white',
-//     textAlign: 'center',
-//     fontSize: 22,
-//     padding: 16,
-//   },
-//   rtcRemoteView: {
-//     width: dimensions.width - 30,
-//     height: dimensions.height,
-//     backgroundColor: 'black',
-//   },
-// });
-
-// export default App;
-
-import React, {useEffect, useState, useCallback} from 'react';
-import {View, Text, Button, StyleSheet, TextInput} from 'react-native';
-
-import {Colors} from 'react-native/Libraries/NewAppScreen';
 import {
   RTCPeerConnection,
   RTCIceCandidate,
   RTCSessionDescription,
-  offerUser,
   RTCView,
-  MediaStream,
-  MediaStreamTrack,
   mediaDevices,
-  registerGlobals,
 } from 'react-native-webrtc';
-
+import {Colors} from 'react-native/Libraries/NewAppScreen';
 import io from 'socket.io-client';
-import useVideoCall from './useVideoCall';
 
 const PC_CONFIG = {iceServers: [{urls: ['stun:stun.l.google.com:19302']}]};
-const pc = new RTCPeerConnection(PC_CONFIG);
 
-const socket = io('http://192.168.1.15:8080/webrtcPeer', {
-  path: '/io/webrtc',
-  query: {
-    room: 'test',
-  },
-});
+export default class App extends Component {
+  constructor(props) {
+    super(props);
 
-function Videocall({userName}) {
-  const {
-    localStream,
-    remoteStream,
-    offerUserName,
-    // Handle UI Event
-    onStart,
-    onAnswer,
-    onHangup,
-    onSwitchCamera,
-    onMuteAudio,
-    onHideCamera,
-  } = useVideoCall({userName});
+    this.pc = new RTCPeerConnection(PC_CONFIG);
+    this.socket = io('http://192.168.1.15:8080/webrtcPeer', {
+      path: '/io/webrtc',
+    });
 
-  const [friendName, setFriendName] = useState('');
+    this.state = {
+      localStream: null,
+      remoteStream: null,
 
-  return (
-    <View style={styles.body}>
-      {offerUserName && <Text>{offerUserName}</Text>}
-      {localStream ? (
-        <RTCView
-          style={styles.localStream}
-          objectFit="cover"
-          streamURL={localStream.toURL()}
-        />
-      ) : (
-        <View style={styles.localStream} />
-      )}
-      {remoteStream ? (
-        <RTCView
-          style={styles.remoteStream}
-          objectFit="cover"
-          streamURL={remoteStream.toURL()}
-        />
-      ) : (
-        <View style={styles.remoteStream} />
-      )}
-      <View style={{flex: 1}}>
-        <TextInput
-          style={styles.inputStyle}
-          value={friendName}
-          onChangeText={setFriendName}
-          placeholder="Enter friend name"
-          placeholderTextColor="#ffffff"
-        />
-        <Button
-          title="Start Call "
-          disabled={!friendName}
-          onPress={() => onStart(friendName)}
-        />
-        <Button title="Stop Call " onPress={onHangup} />
-        <Button title="Answer " onPress={onAnswer} />
-        <Button title="Switch camera " onPress={onSwitchCamera} />
-      </View>
-    </View>
-  );
-}
+      isConnecting: false,
+      skipSelectRemoteAccount: false,
+      accountList: [],
+      localAccount: {},
+      remoteAccount: {},
+    };
 
-function App() {
-  const [isSubmit, setSubmit] = useState(false);
-  const [userName, setUserName] = useState('');
+    // -- For media config.
+    this.isFront = true;
+    this.videoSourceId = '';
+    this.mediaConfig = {
+      audio: true,
+      video: {
+        width: 640,
+        height: 480,
+        frameRate: 30,
+        facingMode: this.isFront ? 'user' : 'environment',
+        deviceId: this.videoSourceId,
+      },
+    };
 
-  return (
-    <View style={{flex: 1, paddingHorizontal: 16}}>
-      {isSubmit ? (
-        <Videocall userName={userName} />
-      ) : (
-        <>
-          <TextInput
-            style={styles.inputStyle}
-            value={userName}
-            onChangeText={setUserName}
-            placeholder="Enter you name"
-            placeholderTextColor="#ffffff"
+    // register listener peerConnect event
+    this.pc.onicecandidate = this.handleOnIceCandidate;
+    this.pc.onaddstream = this.handleOnRemoteAddStream;
+
+    // listener on register account
+    this.socket.on('connected', this.handleOnConnected);
+    this.socket.on('register-success', this.handleOnRegister);
+    this.socket.on('offer', this.handleOnOffer);
+    this.socket.on('answer', this.handleOnAnswer);
+    this.socket.on('candidate', this.handleReceiveOnCandidate);
+    this.socket.on('hangup', this.handleOnHangup);
+  }
+
+  // =================== Handle web socket ====================== //
+  handleOnConnected = accountList => {
+    this.setState({accountList});
+  };
+
+  handleOnRegister = accountList => {
+    this.setState({isConnecting: true, accountList});
+  };
+
+  handleOnOffer = async offer => {
+    console.log('offer => ', offer);
+    await this.pc.setRemoteDescription(new RTCSessionDescription(offer.sdp));
+    this.setState({remoteAccount: offer.from});
+    Alert.alert(
+      `${offer?.from?.name}`,
+      'Video calling...',
+      [
+        {
+          text: 'Cancel',
+          onPress: this.hangup,
+          style: 'cancel',
+        },
+        {text: 'Accept', onPress: this.answer},
+      ],
+      {
+        cancelable: false,
+      },
+    );
+  };
+
+  handleOnAnswer = async offer => {
+    console.log('OnAnswer => ', offer);
+    await this.pc.setRemoteDescription(new RTCSessionDescription(offer.sdp));
+    // Note. This bug from RTCView, Just setState for re-render component
+    this.setState({...this.state});
+  };
+
+  handleReceiveOnCandidate = candidate => {
+    console.log('ReceiveOnCandidate ', candidate);
+    if (candidate) {
+      this.pc.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  };
+
+  handleOnHangup = accountList => {
+    this.clearSession();
+    this.setState({accountList: accountList || []});
+  };
+  // =================== End of handle web socket ====================== //
+
+  // =================== Handle PeerConnect event ====================== //
+  handleOnIceCandidate = ({candidate}) => {
+    const {localAccount, remoteAccount} = this.state;
+    console.log('OnIceCandidate event => ', candidate);
+    this.socket.emit('candidate', {
+      candidate,
+      from: localAccount,
+      to: remoteAccount,
+    });
+  };
+
+  handleOnRemoteAddStream = e => {
+    console.log('OnRemoteAddStream event => ', e.stream);
+    this.setState({remoteStream: e.stream});
+  };
+  // =================== End of handle PeerConnect event ====================== //
+
+  componentDidMount() {
+    this.initialLocalMedia();
+  }
+
+  componentWillUnmount() {
+    const {localAccount} = this.state;
+    this.socket.emit('disconnection', {
+      id: localAccount.id,
+    });
+  }
+
+  handlePressAccountItem = account => () => {
+    const {isConnecting} = this.state;
+
+    if (!isConnecting) {
+      return this.register(account);
+    }
+
+    this.setState({remoteAccount: {...account}}, this.startCall);
+  };
+
+  findMediaDevice = sourceInfos => {
+    return sourceInfos.reduce(
+      (prevent, current) =>
+        current.kind === 'videoinput' &&
+        current.facing === (this.isFront ? 'front' : 'environment')
+          ? current.deviceId
+          : prevent,
+      '',
+    );
+  };
+
+  getUserMedia = async () => {
+    const sourceInfos = await mediaDevices.enumerateDevices();
+    this.videoSourceId = this.findMediaDevice(sourceInfos);
+    const localStream = await mediaDevices.getUserMedia(this.mediaConfig);
+    return localStream;
+  };
+
+  initialLocalMedia = async () => {
+    const localStream = await this.getUserMedia();
+    this.setState({localStream});
+    this.pc.addStream(localStream);
+  };
+
+  register = account => {
+    this.setState({localAccount: {...account}});
+    this.socket.emit('register', {
+      id: account.id,
+      name: account.name,
+      socketId: this.socket.id,
+    });
+  };
+
+  createOffer = async () => {
+    const sdp = await this.pc.createOffer();
+    this.pc.setLocalDescription(sdp);
+    return sdp;
+  };
+
+  createAnswer = async () => {
+    const sdp = await this.pc.createAnswer();
+    this.pc.setLocalDescription(sdp);
+    return sdp;
+  };
+
+  // =================== Call Action ====================== //
+  startCall = async () => {
+    const {localAccount, remoteAccount} = this.state;
+    const sdp = await this.createOffer();
+    this.socket.emit('offer', {
+      sdp,
+      to: remoteAccount.id,
+      id: localAccount.id,
+      socketId: this.socket.id,
+    });
+  };
+
+  answer = async () => {
+    const {localAccount, remoteAccount} = this.state;
+    const sdp = await this.createAnswer();
+    this.socket.emit('answer', {
+      sdp,
+      to: remoteAccount.id,
+      id: localAccount.id,
+      socketId: this.socket.id,
+    });
+  };
+
+  clearSession = () => {
+    const {localStream, remoteStream} = this.state;
+    if (localStream) {
+      localStream.getVideoTracks().forEach(track => {
+        track.stop();
+      });
+
+      localStream.release();
+    }
+    if (remoteStream) {
+      remoteStream.release();
+    }
+
+    this.setState({
+      localStream: null,
+      remoteStream: null,
+      isConnecting: false,
+      skipSelectRemoteAccount: false,
+      accountList: [],
+      localAccount: {},
+      remoteAccount: {},
+    });
+    this.initialLocalMedia();
+  };
+
+  hangup = () => {
+    const {remoteAccount, localAccount} = this.state;
+    this.socket.emit('hangup', {
+      to: remoteAccount.id,
+      id: localAccount.id,
+      socketId: this.socket.id,
+    });
+  };
+
+  switchCamera = () => {
+    const {localStream} = this.state;
+    if (localStream) {
+      localStream.getVideoTracks().forEach(track => {
+        track._switchCamera();
+      });
+    }
+  };
+
+  renderVideo = () => {
+    const {localStream, remoteStream} = this.state;
+    return (
+      <View style={styles.bodyVideo}>
+        {remoteStream ? (
+          <RTCView
+            style={styles.remoteStream}
+            objectFit="cover"
+            streamURL={remoteStream.toURL()}
           />
-          <Button title="Enter" onPress={() => setSubmit(true)} />
-        </>
-      )}
-    </View>
-  );
+        ) : (
+          <View style={styles.remoteStream} />
+        )}
+        {localStream ? (
+          <RTCView
+            style={styles.localStream}
+            objectFit="cover"
+            streamURL={localStream.toURL()}
+          />
+        ) : (
+          <View style={styles.localStream} />
+        )}
+        <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.switchCamera}
+            onPress={this.switchCamera}>
+            <Text style={styles.textButton}>Switch camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.endCall} onPress={this.hangup}>
+            <Text style={styles.textButton}>Hangup</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  renderSelectAccount = () => {
+    const {isConnecting, accountList, localAccount} = this.state;
+
+    return (
+      <View style={styles.body}>
+        <View>
+          {!isConnecting ? (
+            <Text style={styles.textHeader}>Login</Text>
+          ) : (
+            <Text style={styles.textHeader}>Select account for video call</Text>
+          )}
+        </View>
+
+        {accountList
+          .filter(account =>
+            isConnecting ? account.id !== localAccount.id : true,
+          )
+          .map(account => (
+            <TouchableOpacity
+              key={account.id}
+              style={styles.accountItem}
+              onPress={this.handlePressAccountItem(account)}>
+              <Text style={styles.accountItemText}>{account.name}</Text>
+            </TouchableOpacity>
+          ))}
+
+        {isConnecting && (
+          <TouchableOpacity
+            style={styles.accountItem}
+            onPress={() => this.setState({skipSelectRemoteAccount: true})}>
+            <Text style={styles.accountItemText}>Skip</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  render() {
+    const {remoteAccount, skipSelectRemoteAccount} = this.state;
+
+    if (remoteAccount.id || skipSelectRemoteAccount) {
+      return this.renderVideo();
+    }
+
+    return this.renderSelectAccount();
+  }
 }
 
 const styles = StyleSheet.create({
   body: {
     backgroundColor: Colors.white,
-    // justifyContent: 'flex-end',
     flex: 1,
-    // ...StyleSheet.absoluteFill,
+  },
+  bodyVideo: {
+    backgroundColor: Colors.white,
+    flex: 1,
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'flex-end',
+  },
+  textHeader: {
+    backgroundColor: '#3f50b5',
+    height: 64,
+    fontSize: 24,
+    color: '#ffffff',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+  },
+  accountItem: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#ff7961',
+    borderRadius: 50,
+    marginTop: 16,
+    marginHorizontal: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  accountItemText: {
+    fontSize: 18,
+    color: '#ff7961',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+  },
+  row: {
+    flexDirection: 'row',
+  },
+  localStream: {
+    // position: 'absolute',
+    // bottom: 60,
+    // right: 16,
+    // width: 130,
+    // height: 150,
+    flex: 1,
+    backgroundColor: '#000',
   },
   remoteStream: {
     flex: 1,
     backgroundColor: '#000',
+    // ...StyleSheet.absoluteFill,
   },
   inputStyle: {
     backgroundColor: 'gray',
@@ -401,348 +409,25 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     marginVertical: 16,
   },
-  localStream: {
-    flex: 1,
-    backgroundColor: 'pink',
-    // position: 'absolute',
-    // top: 0,
-    // right: 0,
-    // width: 150,
-    // height: 150,
-  },
   footer: {
-    // position: 'absolute',
-    // bottom: 0,
-    // left: 0,
-    // right: 0,
+    backgroundColor: '#fff',
+  },
+  endCall: {
+    flex: 1,
+    backgroundColor: '#d32f2f',
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  switchCamera: {
+    flex: 1,
+    backgroundColor: '#55c63f',
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  textButton: {
+    fontSize: 18,
+    color: '#ffffff',
   },
 });
-
-export default App;
-
-// --------------
-
-// import React, {Component} from 'react';
-// import {
-//   Platform,
-//   StyleSheet,
-//   Text,
-//   View,
-//   Button,
-//   Dimensions,
-// } from 'react-native';
-// import {
-//   RTCPeerConnection,
-//   RTCIceCandidate,
-//   RTCSessionDescription,
-//   RTCView,
-//   MediaStream,
-//   MediaStreamTrack,
-//   mediaDevices,
-// } from 'react-native-webrtc';
-// import io from 'socket.io-client';
-
-// const dimensions = Dimensions.get('window');
-
-// export default class App extends Component {
-//   constructor(props) {
-//     super(props);
-//     this.handleConnect = this.handleConnect.bind(this);
-//     this.setupWebRTC = this.setupWebRTC.bind(this);
-//     this.onConnectionStateChange = this.onConnectionStateChange.bind(this);
-//     this.onAddStream = this.onAddStream.bind(this);
-//     this.onIceCandidate = this.onIceCandidate.bind(this);
-//     this.handleAnswer = this.handleAnswer.bind(this);
-//     this.onReceiveOffer = this.onReceiveOffer.bind(this);
-//     this.onReceiveAnswer = this.onReceiveAnswer.bind(this);
-//     this.state = {
-//       localStreamURL: null,
-//       remoteStreamURL: null,
-//       iceConnectionState: '',
-//       iceCandidates: [],
-//       isAnswerReceived: false,
-//       isOfferReceived: false,
-//       offer: {},
-//       answer: {},
-//       localVideo: {},
-//       remoteVideo: {},
-//       localVideoStream: {},
-//       desc: '',
-//     };
-//   }
-
-//   async setupWebRTC() {
-//     const configuration = {iceServers: [{url: 'stun:stun.l.google.com:19302'}]};
-//     const pc = new RTCPeerConnection(configuration);
-//     pc.onconnectionstatechange = this.onConnectionStateChange;
-//     pc.onaddstream = this.onAddStream;
-//     pc.onicecandidate = this.onIceCandidate;
-
-//     console.log('localStream:', this.state.localVideoStream);
-//     pc.addStream(this.state.localVideoStream);
-//     this.pc = pc;
-//   }
-
-//   async handleConnect(e) {
-//     await this.setupWebRTC();
-//     const {pc} = this;
-
-//     try {
-//       // Create Offer
-//       pc.createOffer({
-//         offerToReceiveVideo: true,
-//         offerToReceiveAudio: true,
-//       }).then(desc => {
-//         pc.setLocalDescription(desc).then(() => {
-//           console.log('Sdp', desc);
-//           this.setState({desc});
-//         });
-//       });
-//     } catch (error) {
-//       console.log(error);
-//     }
-//   }
-
-//   onConnectionStateChange(e) {
-//     console.log('onConnectionStateChange', e);
-//     this.setState({
-//       iceConnectionState: e.target.iceConnectionState,
-//     });
-//   }
-
-//   onAddStream(e) {
-//     console.log('onAddStream', e.stream.toURL());
-//     console.log('onAddStream toatal', e.stream);
-//     this.setState({
-//       remoteVideo: e.stream,
-//       remoteStreamURL: e.stream.toURL(),
-//     });
-//     this.remoteStream = e.stream;
-//   }
-
-//   onIceCandidate(e) {
-//     const {candidate} = e;
-//     if (candidate) {
-//       const {iceCandidates} = this.state;
-//       if (Array.isArray(iceCandidates)) {
-//         this.setState({
-//           iceCandidates: [...iceCandidates, candidate],
-//         });
-//       } else {
-//         this.setState({
-//           iceCandidates: [candidate],
-//         });
-//       }
-//     } else {
-//       if (this.state.iceCandidates.length > 1) {
-//         //send this to signaling server
-//         let offerOrAnswer = {
-//           type: this.state.isOfferReceived ? 'answer' : 'offer',
-//           payload: {
-//             description: this.pc.localDescription,
-//             iceCandidates: this.state.iceCandidates,
-//           },
-//         };
-//         console.log('offerOrAnswer', offerOrAnswer);
-//         // send offer to signaling server
-//         if (offerOrAnswer.type == 'offer') {
-//           console.log('offerOrAnswer', offerOrAnswer.type);
-//           this.socket.emit('offer', JSON.stringify(offerOrAnswer));
-//           console.log('emit called');
-//         } else {
-//           this.socket.emit('answer', JSON.stringify(offerOrAnswer));
-//         }
-//       } else {
-//         console.error('No candidates found');
-//       }
-//     }
-//   }
-
-//   onReceiveOffer(offer) {
-//     this.setState(
-//       {
-//         offer: JSON.parse(offer),
-//         isOfferReceived: true,
-//       },
-//       () => {
-//         console.log('offer received', offer);
-//       },
-//     );
-//   }
-
-//   handleAnswer() {
-//     const {payload} = this.state.offer;
-//     this.setupWebRTC();
-
-//     const {pc} = this;
-//     var offerSdp = {
-//       sdp: payload && payload.description ? payload.description.sdp : '',
-//       type: 'offer',
-//     };
-//     console.log('setupWebRTC g barpunda?', offerSdp);
-
-//     pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
-
-//     if (payload && Array.isArray(payload.candidates)) {
-//       payload.candidates.forEach(c =>
-//         peer.addIceCandidate(new RTCIceCandidate(c)),
-//       );
-//     }
-//     try {
-//       // Create Offer
-//       pc.createAnswer().then(answer => {
-//         pc.setLocalDescription(answer).then(() => {
-//           // Send pc.localDescription to peer
-//           console.log('answer generated', answer);
-//           this.setState({answer}, () => {
-//             console.log('setstateanswer');
-//           });
-//         });
-//       });
-//     } catch (error) {
-//       console.log(error);
-//     }
-//   }
-
-//   onReceiveAnswer(answer) {
-//     const {payload} = JSON.parse(answer);
-//     console.log(' onReceiveAnswer payload', payload);
-//     var answerSdp = {sdp: payload.description.sdp, type: 'answer'};
-//     //set answersdp to current peer RemoteDescription.
-//     this.pc.setRemoteDescription(new RTCSessionDescription(answerSdp));
-//     payload.iceCandidates.forEach(c =>
-//       this.pc.addIceCandidate(new RTCIceCandidate(c)),
-//     );
-//     this.setState(
-//       {
-//         answer: JSON.parse(answer),
-//         isAnswerReceived: true,
-//       },
-//       () => {
-//         console.log('answerReceived');
-//       },
-//     );
-//   }
-
-//   componentDidMount() {
-//     const self = this;
-//     var socket = io('http://192.168.1.15:3000');
-//     this.socket = socket;
-
-//     socket.on('offer', function (offer) {
-//       console.log('Offeronsocket', offer);
-//       self.onReceiveOffer(offer);
-//     });
-
-//     socket.on('answer', function (answer) {
-//       console.log('answeronsocket called', answer);
-//       self.onReceiveAnswer(answer);
-//     });
-
-//     let isFront = true;
-//     mediaDevices.enumerateDevices().then(sourceInfos => {
-//       console.log(sourceInfos);
-//       let videoSourceId;
-//       for (let i = 0; i < sourceInfos.length; i++) {
-//         const sourceInfo = sourceInfos[i];
-//         if (sourceInfo.facing == (isFront ? 'front' : 'back')) {
-//           videoSourceId = sourceInfo.deviceId;
-//           console.log(sourceInfo);
-//         }
-//       }
-//       mediaDevices
-//         .getUserMedia({
-//           audio: true,
-//           video: {
-//             mandatory: {
-//               minWidth: 500, // Provide your own width, height and frame rate here
-//               minHeight: 300,
-//               minFrameRate: 30,
-//             },
-//             facingMode: isFront ? 'user' : 'environment',
-//             optional: videoSourceId ? [{sourceId: videoSourceId}] : [],
-//           },
-//         })
-//         .then(stream => {
-//           // Got stream!
-//           console.log('getUserMedia.stream', stream);
-//           let {localVideo} = self.state;
-//           localVideo.srcObject = new MediaStream();
-//           localVideo.srcObject.addTrack(stream.getTracks()[0], stream);
-//           localVideo.srcObject.addTrack(stream.getTracks()[1], stream);
-//           console.log('localVideo.srcObject1', localVideo.srcObject);
-//           this.setState({
-//             localVideoStream: stream,
-//             localStreamURL: stream.toURL(),
-//           });
-//         })
-//         .catch(error => {
-//           // Log error
-//           console.log(error);
-//         });
-//     });
-//   }
-
-//   render() {
-//     console.log('state.offer', this.state.offer);
-//     console.log('state.answer', this.state.remoteStreamURL);
-//     return (
-//       <View style={styles.container}>
-//         <RTCView streamURL={this.state.localStreamURL} style={styles.rtcView} />
-//         <RTCView
-//           streamURL={this.state.remoteStreamURL}
-//           style={styles.rtcView}
-//         />
-//         <Button title="connect" onPress={this.handleConnect}></Button>
-//         <Button title="answer" onPress={this.handleAnswer}></Button>
-//       </View>
-//     );
-//   }
-// }
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     backgroundColor: '#F5FCFF',
-//   },
-//   welcome: {
-//     fontSize: 20,
-//     textAlign: 'center',
-//     margin: 10,
-//   },
-//   instructions: {
-//     textAlign: 'center',
-//     color: '#333333',
-//     marginBottom: 5,
-//   },
-//   rtcView: {
-//     flex: 1,
-//     width: dimensions.width / 2,
-//     backgroundColor: '#f00',
-//     position: 'relative',
-//   },
-// });
-
-// import React, {useState} from 'react';
-// import {View} from 'react-native';
-// import WEBRtc from './WEBRtc';
-// import {RTCRoom} from './RTCRoom';
-
-// const App = () => {
-//   const [roomID, setRoom] = useState('hello');
-
-//   const getRoom = room => {
-//     setRoom(room);
-//   };
-
-//   return (
-//     <View>
-//       {!roomID ? <RTCRoom getRoom={getRoom} /> : null}
-//       {roomID ? <WEBRtc roomNumber={roomID} /> : null}
-//     </View>
-//   );
-// };
-
-// export default App;

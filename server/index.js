@@ -1,240 +1,119 @@
-var express = require('express');
+const express = require('express');
 const app = express();
-var http = require('http');
-var socketIo = require('socket.io');
+const http = require('http');
+const socketIo = require('socket.io');
 
 const PORT = 8080;
-
-// app.use(express.static(__dirname + '/build'));
-
-// //Default Room
-// app.get('/', (req, res) => {
-//   res.sendFile(__dirname + '/build/index.html');
-// });
-
-// //Provided Room
-// app.get('/:room', (req, res) => {
-//   res.sendFile(__dirname + '/build/index.html');
-// });
-
 const server = http.createServer(app);
 const io = socketIo(server, {path: '/io/webrtc'});
 
 const peers = io.of('/webrtcPeer');
 
 //Keep references of all socket and Room connections
-const rooms = {};
-const messages = {};
 const users = {};
 
+const accountList = [
+  {id: '001', name: 'สมศรี บุญมี'},
+  {id: '002', name: 'สุขวัน ศรีสุข'},
+  {id: '003', name: 'อารีย์ มานา'},
+  {id: '004', name: 'วีระ โชคช่วย'},
+];
+
 peers.on('connection', socket => {
-  const room = socket.handshake.query.room;
-  console.log('New User Connected with socket id ', socket.id, 'Room : ', room);
+  console.log(
+    '=================== New device connecing ======================',
+  );
+  console.log('device ', socket.id);
+  console.log('=========================================');
 
-  rooms[room] =
-    (rooms[room] && rooms[room].set(socket.id, socket)) ||
-    new Map().set(socket.id, socket);
+  // return all account is never use
+  peers
+    .to(socket.id)
+    .emit('connected', accountList.filter(account => !users[account.id]) || []);
 
-  messages[room] = messages[room] || [];
-
-  users[socket.id + ''] = {
-    socket,
-  };
-
-  // console.log('users => ', users);
-
-  socket.emit('connection-success', {
-    success: socket.id,
-    peerCount: rooms[room].size,
-    messages: messages[room],
-    userId: socket.id,
-  });
-
-  //   connectedPeers.set(socket.id, socket);
-  //   const broadcast = () =>
-  //     socket.broadcast.emit("joined-peers", {
-  //       peerCount: connectedPeers.size,
-  //     });
-
-  const broadcast = () => {
-    const connectedPeers = rooms[room];
-    for (const [socketId, _socket] of connectedPeers.entries()) {
-      if (socketId !== socket.id) {
-        _socket.emit('joined-peers', {
-          peerCount: connectedPeers.size,
-        });
-      }
-    }
-  };
-
-  broadcast();
-
-  const disconnectedPeer = socketId => {
-    const connectedPeers = rooms[room];
-
-    console.log(`New peer count ${connectedPeers.size}`);
-
-    for (const [_socketId, _socket] of connectedPeers) {
-      _socket.emit('peer-disconnected', {
-        peerCount: connectedPeers.size,
-        socketId,
-      });
-    }
-  };
-
-  socket.on('register-user', data => {
-    console.log('register-users => ', data);
-    // console.log('all users => ', users);
-    users[data.userId + ''] = {
-      ...users[data.userId + ''],
-      ...data,
-    };
-    // users[data.userId].userId = data.userId;
-    // users[data.userId].userName = data.userName;
-
-    // console.log(' users[data.userId] all users => ', users);
+  socket.on('register', data => {
+    console.log('=================== register ======================');
+    console.log('register ', data);
+    users[data.id] = data;
+    peers
+      .to(data.socketId)
+      .emit(
+        'register-success',
+        accountList.filter(account => users[account.id]) || [],
+      );
+    console.log('=========================================');
   });
 
   socket.on('offer', data => {
-    console.log('========= offer ===========');
-
-    console.log(
-      'All users => ',
-      Object.values(users).map(({socket, ...v}) => ({...v})),
-    );
-    const friendByName = Object.values(users).find(
-      v => v.userName === data.friendName,
-    );
-    console.log('data => ', data.friendName);
-    console.log('data => ', friendByName.userId);
-    // console.log('data => ', friendByName);
-    // console.log('users => ', users);
-
-    const offerUser = Object.values(users).find(
-      v => v.userId === data.socketId,
-    );
-
-    friendByName.socket.emit('offer', {
-      sdp: data.payload,
-      socketId: friendByName.userId,
-      offerUser: {userId: offerUser.userId, userName: offerUser.userName},
+    console.log('=================== offer ======================');
+    console.log('offer ', data);
+    const from = users[data.id];
+    const to = users[data.to];
+    peers.to(to.socketId).emit('offer', {
+      sdp: data.sdp,
+      from: {
+        id: from.id,
+        name: from.name,
+      },
     });
-    // friendByName.socket.emit('offer', data.payload);
-  });
-
-  socket.on('candidate', data => {
-    console.log('========= candidate ===========');
-    const friendByName = Object.values(users).find(
-      v => v.userName === data.friendName,
-    );
-    console.log('data => ', data.friendName);
-    // console.log('data => ', friendByName);
-
-    if (friendByName) {
-      friendByName.socket.emit('candidate', data.payload);
-      // friendByName.socket.emit('candidate', {
-      //   candidate: data.payload,
-      //   socketId: friendByName.userId,
-      // });
-    }
+    console.log('=========================================');
   });
 
   socket.on('answer', data => {
-    console.log('========= answer ===========');
-    const friendByName = Object.values(users).find(
-      v => v.userName === data.friendName,
-    );
-    console.log('data => ', data.friendName);
-    // console.log('data => ', friendByName);
+    console.log('=================== answer ======================');
+    console.log('answer ', data);
+    const from = users[data.id];
+    const to = users[data.to];
+    peers.to(to.socketId).emit('answer', {
+      sdp: data.sdp,
+      from: {
+        id: from.id,
+        name: from.name,
+      },
+    });
 
-    friendByName.socket.emit('answer', data.payload);
-    // friendByName.socket.emit('answer', {
-    //   sdp: data.payload,
-    //   socketId: data.socketId,
-    // });
+    console.log('=========================================');
   });
 
-  // ------------------
+  socket.on('hangup', data => {
+    console.log('=================== hangup ======================');
+    console.log('hangup ', data);
+    const from = users[data.id];
+    const to = users[data.to];
 
-  // socket.on('candidate', data => {
-  //   const connectedPeers = rooms[room];
-  //   for (const [socketId, socket] of connectedPeers.entries()) {
-  //     if (socketId === data.socketId.remote) {
-  //       socket.emit('candidate', {
-  //         candidate: data.payload,
-  //         socketId: data.socketId.local,
-  //       });
-  //     }
-  //   }
-  // });
+    // Delete from-to user
+    delete users[data.id];
+    delete users[data.to];
 
-  // socket.on('new-message', data => {
-  //   console.log('new message ', JSON.parse(data.payload));
-  //   messages[room] = [...messages[room], JSON.parse(data.payload)];
-  // });
+    const newAccountList =
+      accountList.filter(account => !users[account.id]) || [];
+    peers.to(from.socketId).emit('hangup', newAccountList);
+    peers.to(to.socketId).emit('hangup', newAccountList);
 
-  // socket.on('offerOrAnswer', data => {
-  //   const connectedPeers = rooms[room];
-  //   for (const [socketId, socket] of connectedPeers.entries()) {
-  //     if (socketId !== data.socketId) {
-  //       console.log(socketId, data.payload.type);
-  //       socket.emit('offerOrAnswer', data.payload);
-  //     }
-  //   }
-  // });
+    console.log('=========================================');
+  });
 
-  // socket.on('offer', data => {
-  //   const connectedPeers = rooms[room];
-  //   for (const [socketId, socket] of connectedPeers.entries()) {
-  //     if (socketId === data.socketId.remote) {
-  //       socket.emit('offer', {
-  //         sdp: data.payload,
-  //         socketId: data.socketId.local,
-  //       });
-  //     }
-  //   }
-  // });
+  socket.on('candidate', data => {
+    console.log('=================== candidate ======================');
+    console.log('candidate ', data);
+    const to = users[data.to.id];
+    if (to && to.socketId) {
+      peers.to(to.socketId).emit('candidate', data.candidate);
+    }
+    console.log('=========================================');
+  });
 
-  // socket.on('answer', data => {
-  //   const connectedPeers = rooms[room];
-  //   for (const [socketId, socket] of connectedPeers.entries()) {
-  //     if (socketId === data.socketId.remote) {
-  //       socket.emit('answer', {
-  //         sdp: data.payload,
-  //         socketId: data.socketId.local,
-  //       });
-  //     }
-  //   }
-  // });
-
-  // socket.on('candidate', data => {
-  //   const connectedPeers = rooms[room];
-  //   for (const [socketId, socket] of connectedPeers.entries()) {
-  //     if (socketId === data.socketId.remote) {
-  //       socket.emit('candidate', {
-  //         candidate: data.payload,
-  //         socketId: data.socketId.local,
-  //       });
-  //     }
-  //   }
-  // });
+  socket.on('disconnection', data => {
+    console.log('=================== disconnection ======================');
+    console.log('disconnection ', data.id);
+    delete users[data.id];
+    console.log('=========================================');
+  });
 
   socket.on('disconnect', () => {
-    const connectedPeers = rooms[room];
     console.log(`User ${socket.id} is disconnected`);
-    connectedPeers.delete(socket.id);
-    disconnectedPeer(socket.id);
-  });
-
-  socket.on('onlinePeers', data => {
-    const connectedPeers = rooms[room];
-    for (const [socketId, _socket] of connectedPeers.entries()) {
-      if (socketId !== data.socketId.local) {
-        console.log('Online Peer', data.socketId, socketId);
-        socket.emit('online-peer', socketId);
-      }
-    }
+    delete users[socket.id];
   });
 });
 
-server.listen(PORT, () => console.log('Server is listening to port 8080'));
+server.listen(PORT, () => console.log('Server is listening to port ' + PORT));
