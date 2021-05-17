@@ -53,6 +53,7 @@ export default class CallScreen extends Component {
       audio: true,
       video: {
         width: 640,
+        setForceSpeakerphoneOn:true,
         height: 480,
         frameRate: 30,
         facingMode: this.isFront ? 'user' : 'environment',
