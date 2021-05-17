@@ -10,7 +10,9 @@ const io = socketIo(server, {path: '/io/webrtc'});
 const peers = io.of('/webrtcPeer');
 
 //Keep references of all socket and Room connections
-const users = {};
+let users = {};
+let room = [];
+let user_register = [];
 
 const accountList = [
   {id: '001', name: 'สมศรี บุญมี'},
@@ -18,6 +20,10 @@ const accountList = [
   {id: '003', name: 'อารีย์ มานา'},
   {id: '004', name: 'วีระ โชคช่วย'},
 ];
+
+
+
+
 
 peers.on('connection', socket => {
   console.log(
@@ -29,12 +35,14 @@ peers.on('connection', socket => {
   // return all account is never use
   peers
     .to(socket.id)
-    .emit('connected', accountList.filter(account => !users[account.id]) || []);
+    .emit('connected', accountList.filter(account => !users[account.id]) || [],room,user_register);
 
   socket.on('register', data => {
     console.log('=================== register ======================');
     console.log('register ', data);
     users[data.id] = data;
+    create_room(data);
+    console.log("RoomName:"+data.room);
     peers
       .to(data.socketId)
       .emit(
@@ -44,31 +52,46 @@ peers.on('connection', socket => {
     console.log('=========================================');
   });
 
-  socket.on('offer', data => {
+  socket.on('offer', data => {+
     console.log('=================== offer ======================');
     console.log('offer ', data);
-    const from = users[data.id];
-    const to = users[data.to];
-    peers.to(to.socketId).emit('offer', {
+    let connect_id;
+      user_register.forEach(function (result){
+          if(result.id !== data.id && result.room === data.room ){
+            connect_id = result.socketId;
+          }
+      })
+    console.log('=================== Form ======================');
+    //console.log(name,id);
+
+    peers.to(connect_id).emit('offer', {
       sdp: data.sdp,
       from: {
-        id: from.id,
-        name: from.name,
+        id: data.id,
+        name: "Hello",
       },
     });
     console.log('=========================================');
   });
 
   socket.on('answer', data => {
-    console.log('=================== answer ======================');
-    console.log('answer ', data);
-    const from = users[data.id];
-    const to = users[data.to];
-    peers.to(to.socketId).emit('answer', {
+
+    console.log('=================== offer ======================');
+    console.log('offer ', data);
+    let connect_id;
+
+    user_register.forEach(function (result){
+      if(result.id !== data.id && result.room === data.room ){
+        connect_id = result.socketId;
+      }
+    })
+    console.log('=================== AnSwerForm ======================');
+    console.log(connect_id)
+    peers.to(connect_id).emit('answer', {
       sdp: data.sdp,
       from: {
-        id: from.id,
-        name: from.name,
+        id: data.id,
+        name: "Hello To",
       },
     });
 
@@ -115,5 +138,25 @@ peers.on('connection', socket => {
     delete users[socket.id];
   });
 });
+
+
+create_room = (data)=>{
+  console.log(
+    '=================== CreateRoom ======================',
+  );
+  console.log(data);
+  if(user_register.length === 0){
+    user_register.push(data);
+  }else{
+    user_register.forEach(function (result){
+      if(result.id !== data.id){
+        user_register.push(data);
+      }
+    })
+  }
+  console.log( '=================== UserRegister ======================');
+  console.log(user_register)
+
+}
 
 server.listen(PORT, () => console.log('Server is listening to port ' + PORT));
