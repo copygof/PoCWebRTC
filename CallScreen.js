@@ -8,7 +8,7 @@ import {
   Alert,
   Image,
 } from 'react-native';
-
+import InCallManager from 'react-native-incall-manager';
 import {
   RTCPeerConnection,
   RTCIceCandidate,
@@ -19,11 +19,13 @@ import {
 import {Colors} from 'react-native/Libraries/NewAppScreen';
 import io from 'socket.io-client';
 
-const PC_CONFIG = {iceServers: [
-  {
-    urls: ['stun:stun.l.google.com:19302']
-  }
-  ]};
+const PC_CONFIG = {
+  iceServers: [
+    {
+      urls: ['stun:stun.l.google.com:19302'],
+    },
+  ],
+};
 
 export default class CallScreen extends Component {
   constructor(props) {
@@ -42,18 +44,20 @@ export default class CallScreen extends Component {
       accountList: [],
       localAccount: {},
       remoteAccount: {},
-      ListUserConnect: "",
-      room: "",
+      ListUserConnect: '',
+      room: '',
     };
 
     // -- For media config.
     this.isFront = true;
+    this.isMute = false;
+    this.isSpeakerphoneOn = false;
     this.videoSourceId = '';
     this.mediaConfig = {
       audio: true,
       video: {
         width: 640,
-        setForceSpeakerphoneOn:true,
+        setForceSpeakerphoneOn: true,
         height: 480,
         frameRate: 30,
         facingMode: this.isFront ? 'user' : 'environment',
@@ -72,45 +76,36 @@ export default class CallScreen extends Component {
     this.socket.on('answer', this.handleOnAnswer);
     this.socket.on('candidate', this.handleReceiveOnCandidate);
     this.socket.on('hangup', this.handleOnHangup);
-
   }
 
   // =================== Handle web socket ====================== //
-  handleOnConnected = (accountList,roomName,usersOnline) => {
+  handleOnConnected = (accountList, roomName, usersOnline) => {
+    const {id, name, room} = this.props.route.params;
 
-    const { id,name,room } = this.props.route.params;
+    let account = {
+      id: id,
+      name: name,
+      room: room,
+    };
 
+    this.register(account);
+    console.log(id, name, room);
 
-
-      let account = {
-        id:id,
-        name:name,
-        room:room,
-      }
-
-    this.register(account)
-    console.log(id,name,room)
-
-    console.log("Connected!");
-    console.log("RoomList"+roomName);
-    console.log(
-      '=================== ListUser ======================',
-    );
+    console.log('Connected!');
+    console.log('RoomList' + roomName);
+    console.log('=================== ListUser ======================');
     console.log(usersOnline);
 
-    if(usersOnline.length !== 0){
-
-      usersOnline.forEach((result)=>{
-        if(result.room === room){
-          this.setState({ListUserConnect:result});
+    if (usersOnline.length !== 0) {
+      usersOnline.forEach(result => {
+        if (result.room === room) {
+          this.setState({ListUserConnect: result});
           console.log(result);
-          this.setState({remoteAccount:result})
+          this.setState({remoteAccount: result});
           this.startCall();
         }
       });
     }
-
-
 
     this.setState({accountList});
   };
@@ -188,16 +183,16 @@ export default class CallScreen extends Component {
     });
   }
 
-  handlePressAccountItem = (id,name,room) => () => {
+  handlePressAccountItem = (id, name, room) => () => {
     const {isConnecting} = this.state;
     let account = {
-        id:id,
-        name:name,
-        room:room,
-    }
+      id: id,
+      name: name,
+      room: room,
+    };
 
     if (!isConnecting) {
-      this.setState({localAccount:account})
+      this.setState({localAccount: account});
       return this.register(account);
     }
 
@@ -205,6 +200,7 @@ export default class CallScreen extends Component {
   };
 
   findMediaDevice = sourceInfos => {
+    console.log('sourceInfos = ', sourceInfos);
     return sourceInfos.reduce(
       (prevent, current) =>
         current.kind === 'videoinput' &&
@@ -229,12 +225,12 @@ export default class CallScreen extends Component {
   };
 
   register = account => {
-    this.setState({localAccount:account});
+    this.setState({localAccount: account});
     this.forceUpdate();
     this.socket.emit('register', {
       id: account.id,
       name: account.name,
-      room:account.room,
+      room: account.room,
       socketId: this.socket.id,
     });
   };
@@ -253,10 +249,10 @@ export default class CallScreen extends Component {
 
   // =================== Call Action ====================== //
   startCall = async () => {
-    const { id,name,room } = this.props.route.params;
+    const {id, name, room} = this.props.route.params;
     const {localAccount, remoteAccount} = this.state;
-    console.log("Local:",localAccount)
-    console.log("Remote:",remoteAccount)
+    console.log('Local:', localAccount);
+    console.log('Remote:', remoteAccount);
     const sdp = await this.createOffer();
     this.socket.emit('offer', {
       sdp,
@@ -268,7 +264,7 @@ export default class CallScreen extends Component {
   };
 
   answer = async () => {
-    const { id,name,room } = this.props.route.params;
+    const {id, name, room} = this.props.route.params;
     const {localAccount, remoteAccount} = this.state;
     const sdp = await this.createAnswer();
     this.socket.emit('answer', {
@@ -355,19 +351,33 @@ export default class CallScreen extends Component {
             <Text style={styles.textButton}>Hangup</Text>
           </TouchableOpacity>
         </View>
+        <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.switchCamera}
+            onPress={() => {
+              this.isSpeakerphoneOn = !this.isSpeakerphoneOn;
+              InCallManager.setSpeakerphoneOn(this.isSpeakerphoneOn);
+            }}>
+            <Text style={styles.textButton}>Toggle speaker</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.endCall}
+            onPress={() => {
+              this.isMute = !this.isMute;
+              InCallManager.setMicrophoneMute(this.isMute);
+            }}>
+            <Text style={styles.textButton}>On / Off microphone</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
 
-
-
-
-
   renderSelectAccount = () => {
     const {isConnecting, accountList, localAccount} = this.state;
-    let room = "";
-    let user_id = "";
-    let user_name = "";
+    let room = '';
+    let user_id = '';
+    let user_name = '';
     /*
     if(this.state.ListUserConnect.length !== 0){
 
@@ -459,26 +469,24 @@ export default class CallScreen extends Component {
     */
   };
 
-
-  setRemoteAccount = (result)=>{
-    this.setState({remoteAccount:result})
-  }
+  setRemoteAccount = result => {
+    this.setState({remoteAccount: result});
+  };
 
   render() {
     const {remoteAccount, skipSelectRemoteAccount} = this.state;
 
     if (remoteAccount.id || skipSelectRemoteAccount) {
       return this.renderVideo();
-    }else {
-      return(
+    } else {
+      return (
         <View>
           <Text>Waiting..!</Text>
         </View>
-        )
+      );
     }
 
     //return this.renderSelectAccount();
-
   }
 }
 
